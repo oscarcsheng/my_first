@@ -1,2 +1,2 @@
 Thanks for movan zhou£¬I am just learning...
-address£ºhttps://github.com/MorvanZhou/Reinforcement-learning-with-tensorflow.git
+address: https://github.com/MorvanZhou/Reinforcement-learning-with-tensorflow.git
