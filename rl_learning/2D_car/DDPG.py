@@ -27,7 +27,7 @@ from car_env import CarEnv
 np.random.seed(1)
 tf.set_random_seed(1)
 
-MAX_EPISODES = 500
+MAX_EPISODES = 100
 MAX_EP_STEPS = 600
 LR_A = 1e-4  # learning rate for actor
 LR_C = 1e-4  # learning rate for critic
@@ -49,11 +49,13 @@ ACTION_BOUND = env.action_bound
 # all placeholder for tf
 with tf.name_scope('S'):
     S = tf.placeholder(tf.float32, shape=[None, STATE_DIM], name='s')
+    tf.summary.histogram('State', S)   
 with tf.name_scope('R'):
     R = tf.placeholder(tf.float32, [None, 1], name='r')
+    tf.summary.histogram('Reword', R)
 with tf.name_scope('S_'):
     S_ = tf.placeholder(tf.float32, shape=[None, STATE_DIM], name='s_')
-
+    tf.summary.histogram('Next_State', S_)
 
 class Actor(object):
     def __init__(self, sess, action_dim, action_bound, learning_rate, t_replace_iter):
