@@ -1,16 +1,19 @@
+# -*- coding: utf-8 -*-
 """
-Environment is a 2D car.
-Car has 5 sensors to obtain distance information.
+Created on Mon Dec 10 10:23:00 2018
 
-Car collision => reward = -1, otherwise => reward = 0.
+@author: yando
+"""
+
+"""
+Environment is a Robot Arm. The arm tries to get to the blue point.
+The environment will return a geographic (distance) information for the arm to learn.
+The far away from blue point the less reward; touch blue r+=1; stop at blue for a while then get r=+10.
  
 You can train this RL by using LOAD = False, after training, this model will be store in the a local folder.
 Using LOAD = True to reload the trained model for playing.
-
 You can customize this script in a way you want.
-
 View more on [莫烦Python] : https://morvanzhou.github.io/tutorials/
-
 Requirement:
 pyglet >= 1.2.4
 numpy >= 1.12.1
@@ -21,27 +24,28 @@ import tensorflow as tf
 import numpy as np
 import os
 import shutil
-from car_env import CarEnv
+from arm_env_test import ArmEnv
 
 
 np.random.seed(1)
 tf.set_random_seed(1)
 
-MAX_EPISODES = 200
-MAX_EP_STEPS = 600
+MAX_EPISODES = 2000
+MAX_EP_STEPS = 200
 LR_A = 1e-4  # learning rate for actor
 LR_C = 1e-4  # learning rate for critic
 GAMMA = 0.9  # reward discount
-REPLACE_ITER_A = 800
-REPLACE_ITER_C = 700
-MEMORY_CAPACITY = 2000
+REPLACE_ITER_A = 1100
+REPLACE_ITER_C = 1000
+MEMORY_CAPACITY = 5000
 BATCH_SIZE = 16
 VAR_MIN = 0.1
 RENDER = True
 LOAD = True
-DISCRETE_ACTION = False
+MODE = ['easy', 'hard']
+n_model = 1
 
-env = CarEnv(discrete_action=DISCRETE_ACTION)
+env = ArmEnv(mode=MODE[n_model])
 STATE_DIM = env.state_dim
 ACTION_DIM = env.action_dim
 ACTION_BOUND = env.action_bound
@@ -49,13 +53,11 @@ ACTION_BOUND = env.action_bound
 # all placeholder for tf
 with tf.name_scope('S'):
     S = tf.placeholder(tf.float32, shape=[None, STATE_DIM], name='s')
-    tf.summary.histogram('State', S)   
 with tf.name_scope('R'):
     R = tf.placeholder(tf.float32, [None, 1], name='r')
-    tf.summary.histogram('Reword', R)
 with tf.name_scope('S_'):
     S_ = tf.placeholder(tf.float32, shape=[None, STATE_DIM], name='s_')
-    tf.summary.histogram('Next_State', S_)
+
 
 class Actor(object):
     def __init__(self, sess, action_dim, action_bound, learning_rate, t_replace_iter):
@@ -80,11 +82,14 @@ class Actor(object):
         with tf.variable_scope(scope):
             init_w = tf.contrib.layers.xavier_initializer()
             init_b = tf.constant_initializer(0.001)
-            net = tf.layers.dense(s, 100, activation=tf.nn.relu,
+            net = tf.layers.dense(s, 300, activation=tf.nn.leaky_relu,
                                   kernel_initializer=init_w, bias_initializer=init_b, name='l1',
                                   trainable=trainable)
-            net = tf.layers.dense(net, 20, activation=tf.nn.relu,
+            net = tf.layers.dense(net, 300, activation=tf.nn.leaky_relu,
                                   kernel_initializer=init_w, bias_initializer=init_b, name='l2',
+                                  trainable=trainable)
+            net = tf.layers.dense(net, 30, activation=tf.nn.leaky_relu,
+                                  kernel_initializer=init_w, bias_initializer=init_b, name='l3',
                                   trainable=trainable)
             with tf.variable_scope('a'):
                 actions = tf.layers.dense(net, self.a_dim, activation=tf.nn.tanh, kernel_initializer=init_w,
@@ -134,10 +139,9 @@ class Critic(object):
 
         with tf.variable_scope('target_q'):
             self.target_q = R + self.gamma * self.q_
-
         with tf.variable_scope('TD_error'):
             self.loss = tf.reduce_mean(tf.squared_difference(self.target_q, self.q))
-
+            self.losssu = tf.summary.scalar('loss', self.loss)
         with tf.variable_scope('C_train'):
             self.train_op = tf.train.RMSPropOptimizer(self.lr).minimize(self.loss)
 
@@ -150,23 +154,28 @@ class Critic(object):
             init_b = tf.constant_initializer(0.01)
 
             with tf.variable_scope('l1'):
-                n_l1 = 100
+                n_l1 = 300
                 w1_s = tf.get_variable('w1_s', [self.s_dim, n_l1], initializer=init_w, trainable=trainable)
                 w1_a = tf.get_variable('w1_a', [self.a_dim, n_l1], initializer=init_w, trainable=trainable)
                 b1 = tf.get_variable('b1', [1, n_l1], initializer=init_b, trainable=trainable)
-                net = tf.nn.relu6(tf.matmul(s, w1_s) + tf.matmul(a, w1_a) + b1)
-            net = tf.layers.dense(net, 20, activation=tf.nn.relu,
+                net = tf.nn.leaky_relu(tf.matmul(s, w1_s) + tf.matmul(a, w1_a) + b1)
+            net = tf.layers.dense(net, 300, activation=tf.nn.leaky_relu,
                                   kernel_initializer=init_w, bias_initializer=init_b, name='l2',
+                                  trainable=trainable)
+            net = tf.layers.dense(net, 20, activation=tf.nn.leaky_relu,
+                                  kernel_initializer=init_w, bias_initializer=init_b, name='l3',
                                   trainable=trainable)
             with tf.variable_scope('q'):
                 q = tf.layers.dense(net, 1, kernel_initializer=init_w, bias_initializer=init_b, trainable=trainable)   # Q(s,a)
         return q
 
     def learn(self, s, a, r, s_):
-        self.sess.run(self.train_op, feed_dict={S: s, self.a: a, R: r, S_: s_})
+        _, su1 = self.sess.run([self.train_op, self.losssu], feed_dict={S: s, self.a: a, R: r, S_: s_})
         if self.t_replace_counter % self.t_replace_iter == 0:
             self.sess.run([tf.assign(t, e) for t, e in zip(self.t_params, self.e_params)])
         self.t_replace_counter += 1
+        return su1
+
 
 
 class Memory(object):
@@ -188,7 +197,6 @@ class Memory(object):
 
 
 sess = tf.Session()
-
 # Create actor and critic.
 actor = Actor(sess, ACTION_DIM, ACTION_BOUND[1], LR_A, REPLACE_ITER_A)
 critic = Critic(sess, STATE_DIM, ACTION_DIM, LR_C, GAMMA, REPLACE_ITER_C, actor.a, actor.a_)
@@ -197,7 +205,9 @@ actor.add_grad_to_graph(critic.a_grads)
 M = Memory(MEMORY_CAPACITY, dims=2 * STATE_DIM + ACTION_DIM + 1)
 
 saver = tf.train.Saver()
-path = './discrete' if DISCRETE_ACTION else './continuous'
+path = './'+MODE[n_model]
+
+
 
 if LOAD:
     saver.restore(sess, tf.train.latest_checkpoint(path))
@@ -207,11 +217,13 @@ else:
 
 def train():
     var = 2.  # control exploration
+    temp_t = 0
     for ep in range(MAX_EPISODES):
         s = env.reset()
-        ep_step = 0
+        ep_reward = 0
 
         for t in range(MAX_EP_STEPS):
+
         # while True:
             if RENDER:
                 env.render()
@@ -223,48 +235,53 @@ def train():
             M.store_transition(s, a, r, s_)
 
             if M.pointer > MEMORY_CAPACITY:
-                var = max([var*.9995, VAR_MIN])    # decay the action randomness
+                var = max([var*.99999, VAR_MIN])    # decay the action randomness
                 b_M = M.sample(BATCH_SIZE)
                 b_s = b_M[:, :STATE_DIM]
                 b_a = b_M[:, STATE_DIM: STATE_DIM + ACTION_DIM]
                 b_r = b_M[:, -STATE_DIM - 1: -STATE_DIM]
                 b_s_ = b_M[:, -STATE_DIM:]
 
-                critic.learn(b_s, b_a, b_r, b_s_)
+                su1 = critic.learn(b_s, b_a, b_r, b_s_)
                 actor.learn(b_s)
+                writer.add_summary(su1, temp_t + t)
 
             s = s_
-            ep_step += 1
-
-            if done or t == MAX_EP_STEPS - 1:
+            ep_reward += r
+            
+            if t == MAX_EP_STEPS-1 or done:
+                temp_t += t
             # if done:
+                result = '| done' if done else '| ----'
                 print('Ep:', ep,
-                      '| Steps: %i' % int(ep_step),
+                      result,
+                      '| R: %i' % int(ep_reward),
                       '| Explore: %.2f' % var,
                       )
                 break
 
     if os.path.isdir(path): shutil.rmtree(path)
     os.mkdir(path)
-    ckpt_path = os.path.join(path, 'DDPG.ckpt')
+    ckpt_path = os.path.join('./'+MODE[n_model], 'DDPG.ckpt')
     save_path = saver.save(sess, ckpt_path, write_meta_graph=False)
     print("\nSave Model %s\n" % save_path)
-
+    
+    
 
 def eval():
     env.set_fps(30)
+    s = env.reset()
     while True:
-        s = env.reset()
-        while True:
+        if RENDER:
             env.render()
-            a = actor.choose_action(s)
-            s_, r, done = env.step(a)
-            s = s_
-            if done:
-                break
+        a = actor.choose_action(s)
+        s_, r, done = env.step(a)
+        s = s_
 
 if __name__ == '__main__':
     if LOAD:
         eval()
     else:
+        writer=tf.summary.FileWriter('C:/Users/dell/Desktop/Codes/tensorboard', tf.get_default_graph())
         train()
+        writer.close

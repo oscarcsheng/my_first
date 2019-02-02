@@ -1,16 +1,19 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Dec 10 10:12:05 2018
+
+@author: yando
+"""
+
 """
 Environment is a 2D car.
 Car has 5 sensors to obtain distance information.
-
 Car collision => reward = -1, otherwise => reward = 0.
  
 You can train this RL by using LOAD = False, after training, this model will be store in the a local folder.
 Using LOAD = True to reload the trained model for playing.
-
 You can customize this script in a way you want.
-
 View more on [莫烦Python] : https://morvanzhou.github.io/tutorials/
-
 Requirement:
 pyglet >= 1.2.4
 numpy >= 1.12.1
@@ -21,14 +24,14 @@ import tensorflow as tf
 import numpy as np
 import os
 import shutil
-from car_env import CarEnv
+from car_env_test import CarEnv
 
 
 np.random.seed(1)
 tf.set_random_seed(1)
 
-MAX_EPISODES = 200
-MAX_EP_STEPS = 600
+MAX_EPISODES = 2000
+MAX_EP_STEPS = 16000
 LR_A = 1e-4  # learning rate for actor
 LR_C = 1e-4  # learning rate for critic
 GAMMA = 0.9  # reward discount
@@ -36,7 +39,7 @@ REPLACE_ITER_A = 800
 REPLACE_ITER_C = 700
 MEMORY_CAPACITY = 2000
 BATCH_SIZE = 16
-VAR_MIN = 0.1
+VAR_MIN = 0.05
 RENDER = True
 LOAD = True
 DISCRETE_ACTION = False
@@ -49,13 +52,11 @@ ACTION_BOUND = env.action_bound
 # all placeholder for tf
 with tf.name_scope('S'):
     S = tf.placeholder(tf.float32, shape=[None, STATE_DIM], name='s')
-    tf.summary.histogram('State', S)   
 with tf.name_scope('R'):
     R = tf.placeholder(tf.float32, [None, 1], name='r')
-    tf.summary.histogram('Reword', R)
 with tf.name_scope('S_'):
     S_ = tf.placeholder(tf.float32, shape=[None, STATE_DIM], name='s_')
-    tf.summary.histogram('Next_State', S_)
+
 
 class Actor(object):
     def __init__(self, sess, action_dim, action_bound, learning_rate, t_replace_iter):
@@ -80,10 +81,10 @@ class Actor(object):
         with tf.variable_scope(scope):
             init_w = tf.contrib.layers.xavier_initializer()
             init_b = tf.constant_initializer(0.001)
-            net = tf.layers.dense(s, 100, activation=tf.nn.relu,
+            net = tf.layers.dense(s, 150, activation=tf.nn.relu,
                                   kernel_initializer=init_w, bias_initializer=init_b, name='l1',
                                   trainable=trainable)
-            net = tf.layers.dense(net, 20, activation=tf.nn.relu,
+            net = tf.layers.dense(net, 30, activation=tf.nn.relu,
                                   kernel_initializer=init_w, bias_initializer=init_b, name='l2',
                                   trainable=trainable)
             with tf.variable_scope('a'):
@@ -206,10 +207,13 @@ else:
 
 
 def train():
-    var = 2.  # control exploration
+    var = 2.5  # control exploration
+    break_flag = False
     for ep in range(MAX_EPISODES):
         s = env.reset()
         ep_step = 0
+        if break_flag == True:
+            break
 
         for t in range(MAX_EP_STEPS):
         # while True:
@@ -223,7 +227,7 @@ def train():
             M.store_transition(s, a, r, s_)
 
             if M.pointer > MEMORY_CAPACITY:
-                var = max([var*.9995, VAR_MIN])    # decay the action randomness
+                var = max([var*.99995, VAR_MIN])    # decay the action randomness
                 b_M = M.sample(BATCH_SIZE)
                 b_s = b_M[:, :STATE_DIM]
                 b_a = b_M[:, STATE_DIM: STATE_DIM + ACTION_DIM]
@@ -235,6 +239,9 @@ def train():
 
             s = s_
             ep_step += 1
+            if ep_step >= 15000:
+                break_flag = True
+                break
 
             if done or t == MAX_EP_STEPS - 1:
             # if done:
