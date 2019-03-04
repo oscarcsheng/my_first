@@ -1,15 +1,16 @@
+#！-*-coding:utf-8-*-
 import requests
 import json
-#from naoqi import ALProxy
+from naoqi import ALProxy
 
 
-#key = 'ff5c48b026ef481ea8972ad7f3e6a247'
-key = '7addaf980bb346309c98584ee7005b36'
-#userID = '406387'
-userID = '406582'
+key = 'ff5c48b026ef481ea8972ad7f3e6a247'
+#key = '7addaf980bb346309c98584ee7005b36'
+userID = '406387'
+#userID = '406582'
 
-#tts = ALProxy("ALTextToSpeech", "127.0.0.1", 43529)
-
+tts = ALProxy("ALTextToSpeech", "127.0.0.1", 38091)
+#tts = ALProxy("ALTextToSpeech", "192.168.43.56", 9559)
 
 while True:
     info = raw_input("\n我：")  
@@ -29,17 +30,17 @@ while True:
     res = requests.post(url,data=json.dumps(data))
     res.encoding = 'utf-8'
     #res1 = res.text.find(values)
-    print(res.text)
+   # print(res.text)
     jd = json.loads(res.text)##将得到的json格式的信息转换为Python的字典格式
    # print(jd(values))
   #  res1 = res.emotion
   #  print(type(res.text))
-    answer = jd['results']['values']
-    print(answer)
-   # answer2 = answer['values']
-  #  print(answer2)
+   # answer = jd['results'][0]['values']
+   # print(answer)
+    answer1 = jd['results'][0]['values']['text']
+    print(answer1)
    # answer3 = answer2['text']
-
-
+    
+    answer2=answer1.encode("utf-8")
     #print(answer3)
-   # tts.say(res.text)
+    tts.say(answer2)
