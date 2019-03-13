@@ -9,8 +9,8 @@ key = 'ff5c48b026ef481ea8972ad7f3e6a247'
 userID = '406387'
 #userID = '406582'
 
-tts = ALProxy("ALTextToSpeech", "127.0.0.1", 38091)
-#tts = ALProxy("ALTextToSpeech", "192.168.43.56", 9559)
+#tts = ALProxy("ALTextToSpeech", "127.0.0.1", 38091)
+tts = ALProxy("ALTextToSpeech", "192.168.43.56", 9559)
 
 while True:
     info = raw_input("\n我：")  
@@ -40,7 +40,7 @@ while True:
     answer1 = jd['results'][0]['values']['text']
     print(answer1)
    # answer3 = answer2['text']
-    
+
     answer2=answer1.encode("utf-8")
     #print(answer3)
     tts.say(answer2)
